@@ -29,6 +29,7 @@
 #define TARGET_CURRENT_STEP 1
 #define VOLTAGE_READING_AVRG_LOOP (100*2)
 #define VIN_5 5000
+#define TERMINAL_SIZE 70
 
 
 class batteryCharger {
@@ -73,13 +74,20 @@ class batteryCharger {
     float chargeStuckBoost;
     float batteryVoltageAvgOld;
 
+    String doubleLine;
+    String singleLine;
+
+    int __deferedFullClear;
+
     batteryCharger(int __outputPin, int __analogPinOne, int __analogPinTwo, int __analogPinThree);
     float getBatteryVoltage();
-    void serialClearScreen();
+    void deferedFullClearScreen();
+    void serialClearScreen(int REAL);
     void serialBegin();
     void loop(int CLEAR_SCREEN);
+    void print(String msg);
+    String repeat(String str, int times);
 };
-
 
 
 // ====================================================================================
@@ -123,6 +131,10 @@ batteryCharger::batteryCharger(int __outputPin, int __analogPinOne, int __analog
     voltageReference = 4900;
     chargeStuckBoost = 0;
     batteryVoltageAvgOld = 0;
+    __deferedFullClear = 1;
+
+    doubleLine = repeat( "=", TERMINAL_SIZE );
+    singleLine = repeat( "-", TERMINAL_SIZE );
 
     pinMode(outputPin, OUTPUT);           // sets the pin as output
     _outputValue = outputValue;
@@ -132,16 +144,42 @@ batteryCharger::batteryCharger(int __outputPin, int __analogPinOne, int __analog
 // ====================================================================================
 void batteryCharger::serialBegin(){
     Serial.begin(115200);                 // setup serial
+    serialClearScreen(1);
 }
 
 // ====================================================================================
-void batteryCharger::serialClearScreen(){
-  Serial.write(27);       // ESC command
-  Serial.print("[2J");    // clear screen command
-  Serial.write(27);
-  Serial.print("[H");     // cursor to home command
-  Serial.println("================================================================");
-  //Serial.print("\u001B[2J");
+String batteryCharger::repeat(String str, int times){
+    String ret="";
+    for( int n=0 ; n < times ; n++ ){
+        ret += str;
+    }
+    return ret;
+}
+// ====================================================================================
+
+void batteryCharger::print(String msg){
+    String txt = msg ;
+    txt += repeat( " ", TERMINAL_SIZE-msg.length() );
+    Serial.println(txt.c_str());
+}
+
+// ====================================================================================
+void batteryCharger::deferedFullClearScreen(){
+    __deferedFullClear = 1;
+}
+
+// ====================================================================================
+void batteryCharger::serialClearScreen(int REAL=0){
+    if ( REAL > 0 || __deferedFullClear > 0){
+        Serial.write(27);       // ESC command
+        Serial.print("[2J");    // clear screen command
+        __deferedFullClear = 0;
+    }
+    Serial.write(27);
+    Serial.print("[H");     // cursor to home command
+    Serial.println(doubleLine.c_str());
+    delay(1);
+    //Serial.print("\u001B[2J");
 }
 
 // ====================================================================================
@@ -194,11 +232,9 @@ float batteryCharger::getBatteryVoltage(){
   tmp36Voltage = valueProbeThree * 5.0;     // converting that reading to voltage
   tmp36Voltage /= 1024.0;
   temperatureC = (tmp36Voltage - 0.5) * 100 ;     //converting from 10 mv per degree wit 500 mV offset to degrees ((voltage - 500mV) times 100)
-  Serial.print("Temperature (degrees C) ");     //display the temperature in degrees C
-  Serial.println(temperatureC);
+  print(String("Temperature (degrees C) ")+String(temperatureC));     //display the temperature in degrees C
   temperatureF = (temperatureC * 9.0 / 5.0) + 32.0;     //convert to Fahrenheit
-  Serial.print("Temperature (degrees F) ");
-  Serial.println(temperatureF);
+  print(Strin("Temperature (degrees F) ")+String(temperatureF));
   */
 
   return   batteryVoltage ;
@@ -226,7 +262,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
         _outputValue  = 0;
         chargeStuckBoost = 0;
-        Serial.println("No Battery connected");     //display the temperature in degrees C
+        print("No Battery connected");     //display the temperature in degrees C
         analogWrite(outputPin, 0);
         // delay(1000);
 
@@ -304,8 +340,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         if(temperatureC > cutoffTemperatureC)     //stop charging if the battery temperature exceeds the safety threshold
         {
             _outputValue = 0;
-            Serial.print("Max Temperature Exceeded");
-              Serial.println();
+            print("Max Temperature Exceeded");
         }else
 
         /*
@@ -328,22 +363,21 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         float limitCheckIfCharged =  CHECK_CHARGE / ( 1 + charged * 10 ) ;
         int n=0;
         if( checkIfCharged > limitCheckIfCharged ) {
-            Serial.println("Waiting 5 seconds for battery cool down so we can get better voltage reading...");
+            deferedFullClearScreen();
+            print("Waiting 5 seconds for battery cool down so we can get better voltage reading...");
             analogWrite(outputPin, 0);
             delay(5000);
-            Serial.println("================================================================");
+            print(doubleLine);
             for(n = 0 ; n<10 ; n++){
                 float _batteryVoltage = getBatteryVoltage();
                 batteryVoltageAvg += _batteryVoltage;
-                Serial.print("Battery Charged Voltage (mV): ");     //display battery voltage
-                Serial.println(_batteryVoltage);
+                print(String("Battery Charged Voltage (mV): ")+String(_batteryVoltage));     //display battery voltage
                 delay(1000);
             }
             batteryVoltageAvg /= n;
-            Serial.println("================================================================");
-            Serial.print("Battery Charged Voltage Avg (mV): ");     //display battery voltage
-            Serial.println(batteryVoltageAvg);
-            Serial.println("================================================================");
+            print(doubleLine);
+            print("Battery Charged Voltage Avg (mV): "+String(batteryVoltageAvg));     //display battery voltage
+            print(doubleLine);
 
             if ( batteryVoltageAvg < batteryVoltageAvgOld ) {
                 chargeStuckBoost = 20;
@@ -374,8 +408,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
                 maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
                 _outputValue  = 0;
                 chargeStuckBoost = 0;
-                Serial.print("Max Voltage Exceeded... stopping charging.");
-                Serial.println();
+                print("Max Voltage Exceeded... stopping charging.");
             }
         }
 
@@ -398,51 +431,33 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         // display values on the serial port
         // ====================================================================================
         if ( CLEAR_SCREEN > 0 ) serialClearScreen();
-        Serial.print("Voltage Probe One (mV): ");     //display voltage at probe one
-        Serial.println(voltageProbeOne);
-        Serial.print("Voltage Probe Two (mV): ");     //display voltage at probe two
-        Serial.println(voltageProbeTwo);
-        Serial.print("Voltage Probe Three (mV): ");     //display voltage at probe two
-        Serial.println(voltageProbeThree);
-
-        Serial.print("Battery Voltage (mV): ");     //display battery voltage
-        Serial.println(batteryVoltage);
-        Serial.print("Charging Voltage diff (mV): ");     //display battery voltage
-        Serial.println(ChargingDifference);
-
-        Serial.print("Target Current (mA): ");     //display target current
-        Serial.println(targetCurrent);
-        Serial.print("Battery Current (mA): ");     //display actual current
-        Serial.println(current);
-
-        Serial.print("Current Error  (mA): ");     //display current error
-        Serial.println(currentError);
-
-        Serial.print("Target Current Adjusted Limit (mA): ");     //display target current
-        Serial.println(maximunAutoAdjustedChargingCurrent);
-
+        print("Voltage Probe One (mV): "+String(voltageProbeOne));     //display voltage at probe one
+        print("Voltage Probe Two (mV): "+String(voltageProbeTwo));
+        print("Voltage Probe Three (mV): "+String(voltageProbeThree));
+        print("Battery Voltage (mV): "+String(batteryVoltage));
+        print("Charging Voltage diff (mV): "+String(ChargingDifference));
+        print("Target Current (mA): "+String(targetCurrent));
+        print("Battery Current (mA): "+String(current));
+        print("Current Error  (mA): "+String(currentError));
+        print("Target Current Adjusted Limit (mA): "+String(maximunAutoAdjustedChargingCurrent));
 
         // ====================================================================================
         // bottom line final data output
         // ====================================================================================
-        Serial.println("----------------------------------------------------------------");
-        Serial.print("| Out: ");     //display output values for monitoring with a computer
-        Serial.print( _outputValue );
-        Serial.print(" | isChrgd: ");     //display current error
-        Serial.print( (100*(1.0 - (checkIfCharged / limitCheckIfCharged))) );
-        Serial.print("%");     //display output values for monitoring with a computer
-        Serial.print(" | stuckBoost: ");     //display current error
-        Serial.print( 100*(chargeStuckBoost/STUCK_BOOST_THRESHOLD) );
-        Serial.print( "%" );
-
-
-        Serial.print(" | Chrgd? ");     //display output values for monitoring with a computer
-        if( charged > 0 ){
-            Serial.print("YES |");
-        }else{
-            Serial.print("NO  |");
-        }
-        Serial.println( ' ' );
-        Serial.println("================================================================");
+        print(doubleLine);
+        print("| Out: "
+            + String( _outputValue )
+            + " | isChrgd: "
+            + String( (100*(1.0 - (checkIfCharged / limitCheckIfCharged))) )
+            + "% | stuckBoost: "
+            + String( 100*(chargeStuckBoost/STUCK_BOOST_THRESHOLD) )
+            + "%  | Chrgd? "
+            + (charged > 0 ?
+                "YES |" :
+                "NO  |"
+              )
+        );
+        print(doubleLine);
+        print("");
     }
 }
