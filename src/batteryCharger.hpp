@@ -383,8 +383,15 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
                 chargeStuckBoost = 20;
             }else if( abs( CUTOF_VOLTAGE - batteryVoltageAvg ) < 50 ){
                 chargeStuckBoost++;
+                if( chargeStuckBoost > STUCK_BOOST_THRESHOLD ){
+                    chargeStuckBoost = 20;
+                }
             }else{
-                chargeStuckBoost = 0;
+                if( chargeStuckBoost > STUCK_BOOST_THRESHOLD ){
+                    chargeStuckBoost -= 1;
+                }else{
+                    chargeStuckBoost = 0;
+                }
             }
             batteryVoltageAvgOld = batteryVoltageAvg;
 
@@ -416,7 +423,6 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         // if we are in charge stuck boost mode, set output value to max!
         // ====================================================================================
         if( chargeStuckBoost >= STUCK_BOOST_THRESHOLD ){
-            chargeStuckBoost = STUCK_BOOST_THRESHOLD;
             chargingVoltage = CHARGING_VOLTAGE_BOOST;
         }else{
             chargingVoltage = CHARGING_VOLTAGE;
@@ -450,7 +456,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
             + " | isChrgd: "
             + String( (100*(1.0 - (checkIfCharged / limitCheckIfCharged))) )
             + "% | stuckBoost: "
-            + String( 100*(chargeStuckBoost/STUCK_BOOST_THRESHOLD) )
+            + String( 100*( chargeStuckBoost>STUCK_BOOST_THRESHOLD ? STUCK_BOOST_THRESHOLD : chargeStuckBoost/STUCK_BOOST_THRESHOLD) )
             + "%  | Chrgd? "
             + (charged > 0 ?
                 "YES |" :
