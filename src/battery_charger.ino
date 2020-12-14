@@ -20,6 +20,7 @@
 #define VOLTAGE_REFERENCE_PIN 2
 batteryCharger *charger1;
 batteryCharger *charger2;
+
 void setup(){
   // D1 = digital output PWM pin for charging
   // A0 = analog input pin before the 10ohm resistor
