@@ -13,14 +13,22 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-int batteryCapacity = 2500;     //capacity rating of battery in mAh
-float resistance = 10.0;     //measured resistance of the power resistor
-int cutoffVoltage = 1650;     //maximum battery voltage (in mV) that should not be exceeded
-int chargingVoltage = 1800;     //maximum battery charging voltage (in mV) that should not be exceeded
+// ==============================================================================================================================
+// Constants
+// ==============================================================================================================================
+#define BATTERY_CAPACITY          2500.0 // capacity rating of battery in mAh
+#define RESISTANCE                10.0   // measured resistance of the power resistor
+#define CUTOF_VOLTAGE             1650.0 // maximum battery voltage (in mV) that should not be exceeded
+#define CHARGING_VOLTAGE          1800.0 // charging voltage limit
+#define CHARGING_VOLTAGE_BOOST    2100.0 // charging voltage limit during boost
+#define MAXIMUN_CHARGING_CURRENT  1000.0 // this will be set automatically later on once the PWM charging pin gets to 255!
+// ==============================================================================================================================
+
+
 float cutoffTemperatureC = 35;     //maximum battery temperature that should not be exceeded (in degrees C)
 //float cutoffTemperatureF = 95;     //maximum battery temperature that should not be exceeded (in degrees F)
 long cutoffTime = 46800000;     //maximum charge time of 13 hours that should not be exceeded
-int maximunChargingCurrent = 1000; // this will be set automatically later on once the PWM charging pin gets to 255!
+int chargingVoltage = 1800;     //maximum battery charging voltage (in mV) that should not be exceeded
 
 int outputPin = 11;     // Output signal wire connected to digital pin 9
 int outputValue = 207;     //value of PWM output signal 
@@ -44,7 +52,7 @@ float temperatureC = 0;     //calculated temperature of probe in degrees C
 float voltageDifference = 0;     //difference in voltage between analogPinOne and analogPinTwo
 float batteryVoltage = 0;     //calculated voltage of battery
 float current = 0;     //calculated current through the load (in mA)
-float targetCurrent = batteryCapacity / 10;     //target output current (in mA) set at C/10 or 1/10 of the battery capacity per hour
+float targetCurrent = BATTERY_CAPACITY / 10;     //target output current (in mA) set at C/10 or 1/10 of the battery capacity per hour
 float currentError = 0;     //difference between target current and actual current (in mA)
 float currentErrorAvg = 0;     //difference between target current and actual current (in mA)
 int maximunAutoAdjustedChargingCurrent = 1000;
@@ -63,13 +71,28 @@ float voltageProbeThreeAvg = 0;
 float batteryVoltageAvg = 0;
 float voltageReference = 4900;
 float chargeStuckBoost = 0;
+float batteryVoltageAvgOld = 0;
+
+
+void serialClearScreen(){
+  
+  Serial.write(27);       // ESC command
+  Serial.print("[2J");    // clear screen command
+
+  Serial.write(27);
+  Serial.print("[H");     // cursor to home command
+
+  Serial.println("================================================================"); 
+
+  //Serial.print("\u001B[2J");
+}
 
 // ====================================================================================
 // loops max values
 // ====================================================================================
 #define _loop1 (100*4)
 #define _loop2 1
-#define _checkCharge 1000
+#define _checkCharge 200
 //#define Vi5V (5000.0*(1000.0/1023))
 #define Vi5V (5000.0)
 
@@ -108,10 +131,10 @@ float getBatteryVoltage(int __analogPinOne, int __analogPinTwo, int __analogPinT
   // calculate voltage and current
   // ====================================================================================
   // calculate battery voltage
-  batteryVoltage = (voltageProbeThree - voltageProbeTwo) * ( 1.0 - (1.0/resistance) );     
+  batteryVoltage = (voltageProbeThree - voltageProbeTwo) * ( 1.0 - (1.0/RESISTANCE) );     
 
   // calculate charge current
-  current = (voltageProbeTwo - voltageProbeOne) / resistance;     
+  current = (voltageProbeTwo - voltageProbeOne) / RESISTANCE;     
 
   //difference between target current and measured current
   currentError = targetCurrent - current;     
@@ -163,8 +186,8 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
   // ====================================================================================
   if ( batteryVoltage > 2500 ) {
 
-    targetCurrent = batteryCapacity / 10;   
-    maximunAutoAdjustedChargingCurrent = maximunChargingCurrent;
+    targetCurrent = BATTERY_CAPACITY / 10;   
+    maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
     _outputValue  = 0;
     chargeStuckBoost = 0;
     Serial.println("No Battery connected");     //display the temperature in degrees C
@@ -209,6 +232,7 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
       // ====================================================================================
       // display values on the serial port
       // ====================================================================================
+      serialClearScreen();
       Serial.print("Voltage Probe One (mV): ");     //display voltage at probe one
       Serial.println(voltageProbeOne);  
       Serial.print("Voltage Probe Two (mV): ");     //display voltage at probe two
@@ -278,7 +302,8 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
       // amount of current needed!
       // ====================================================================================
       _outputValue = 0;
-      if(abs(currentError) > 1 and targetCurrent > 0) {    //if output error is large enough, adjust output
+      //if(abs(currentError) > 1 and targetCurrent > 0) {    //if output error is large enough, adjust output
+      if( targetCurrent > 0 ) { 
          outputValue = outputValue + currentError / 10;
          
          if(outputValue < 0){
@@ -286,7 +311,7 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
          }
          else if(outputValue > 254){     //output can never go above 255
            outputValue = 255;
-           if(maximunAutoAdjustedChargingCurrent == maximunChargingCurrent && _old_outputValue == 255){
+           if(maximunAutoAdjustedChargingCurrent == MAXIMUN_CHARGING_CURRENT && _old_outputValue == 255){
               // limit the maximunAutoAdjustedChargingCurrent  to the maximunChargingCurrent here, since 
               // the maximun PWM is 255, so we can't have more current than what we have right now!
               // we also only do this if PWM is 255 twice in a row, just to be sure to limit the current
@@ -295,7 +320,7 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
            }
          }else{
            // if we're below 255, reset maximum current back so it can auto-adjust again.
-           maximunAutoAdjustedChargingCurrent = maximunChargingCurrent;
+           maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
          }
         
          //analogWrite(outputPin, outputValue);     //write the new output value
@@ -350,16 +375,20 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
         Serial.println(batteryVoltageAvg); 
         Serial.println("================================================================"); 
 
-        if( batteryVoltageAvg > cutoffVoltage-100 && batteryVoltageAvg < cutoffVoltage ){
+        if ( batteryVoltageAvg < batteryVoltageAvgOld ) {
+            chargeStuckBoost = 20;
+        }else if( abs( CUTOF_VOLTAGE - batteryVoltageAvg ) < 50 ){
             chargeStuckBoost++;
         }else{
             chargeStuckBoost = 0;
         }
-    
+        batteryVoltageAvgOld = batteryVoltageAvg;    
+
+     
         // ====================================================================================
         // if the battery voltage got to the cutout voltage, stop charging!
         // ====================================================================================
-        if(batteryVoltageAvg > cutoffVoltage){
+        if(batteryVoltageAvg > CUTOF_VOLTAGE){
            charged = 1;
         } else {
            charged =0;
@@ -371,8 +400,8 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
         // ====================================================================================
         checkIfCharged = 0;
         if(charged) {    //stop charging if the battery voltage exceeds the safety threshold
-          targetCurrent = batteryCapacity / 10;   
-          maximunAutoAdjustedChargingCurrent = maximunChargingCurrent;
+          targetCurrent = BATTERY_CAPACITY / 10;   
+          maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
           _outputValue  = 0;
           chargeStuckBoost = 0;
           Serial.print("Max Voltage Exceeded... stopping charging.");
@@ -386,7 +415,9 @@ void chargeBatteryLoop(int __analogPinOne, int __analogPinTwo, int __analogPinTh
       #define _chargeStuckBoostThreshold 10
       if( chargeStuckBoost >= _chargeStuckBoostThreshold ){
          chargeStuckBoost = _chargeStuckBoostThreshold;
-         _outputValue *= 2;
+         chargingVoltage = 2100;
+      }else{
+         chargingVoltage = 1800;
       }
       
       // ====================================================================================
