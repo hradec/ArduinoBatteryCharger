@@ -26,13 +26,10 @@
 #define MAXIMUN_CHARGING_CURRENT  1000.0 // this will be set automatically later on once the PWM charging pin gets to 255!
 #define CHECK_CHARGE 500
 #define STUCK_BOOST_THRESHOLD 4
-#define Vi5V 5000
+#define TARGET_CURRENT_STEP 1
+#define VOLTAGE_READING_AVRG_LOOP (100*2)
+#define VIN_5 5000
 
-// ====================================
-// loops max values
-// ====================================
-#define _loop1 (100*4)
-#define _loop2 1
 
 class batteryCharger {
   public:
@@ -164,7 +161,7 @@ float batteryCharger::getBatteryVoltage(){
   voltageProbeOne = 0;
   voltageProbeTwo = 0;
   voltageProbeThree = 0;
-  for( int n=0 ; n < _loop1 ; n++ ){
+  for( int n=0 ; n < VOLTAGE_READING_AVRG_LOOP ; n++ ){
     valueProbeOne      = analogRead(analogPinOne);    // read the input value at probe one
     voltageProbeOne   += (valueProbeOne/1023);     //calculate voltage at probe one in milliVolts
     valueProbeTwo      = analogRead(analogPinTwo);    // read the input value at probe two
@@ -172,11 +169,11 @@ float batteryCharger::getBatteryVoltage(){
     valueProbeThree    = analogRead(analogPinThree);    // read the input value at probe three
     voltageProbeThree += (valueProbeThree/1023);     //calculate voltage at probe 3 in milliVolts
   }
-  voltageProbeThree = (voltageProbeThree / _loop1) * Vi5V;
-  //voltageProbeThree = Vi5V ;
+  voltageProbeThree = (voltageProbeThree / VOLTAGE_READING_AVRG_LOOP) * VIN_5;
+  //voltageProbeThree = VIN_5 ;
   voltageReference = voltageProbeThree;
-  voltageProbeOne  = (voltageProbeOne / _loop1) * voltageReference;
-  voltageProbeTwo  = (voltageProbeTwo / _loop1) * voltageReference;
+  voltageProbeOne  = (voltageProbeOne / VOLTAGE_READING_AVRG_LOOP) * voltageReference;
+  voltageProbeTwo  = (voltageProbeTwo / VOLTAGE_READING_AVRG_LOOP) * voltageReference;
 
   // ====================================================================================
   // calculate voltage and current
@@ -250,9 +247,9 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
 
             // adjust the charging current so we can automatically adjust for any battery type!
             if ( ChargingDifference > 0 ){
-              targetCurrent += _loop2;
+              targetCurrent += TARGET_CURRENT_STEP;
             }else{
-              targetCurrent -= _loop2;
+              targetCurrent -= TARGET_CURRENT_STEP;
             }
 
             // lets keep charging current always above 50 for now.
