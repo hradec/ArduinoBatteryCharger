@@ -28,12 +28,12 @@ void setup(){
   // use batteryCharger( <D1>, <A0>, <A1>, <A2> ) to create a charger for one battery. 
   // We can create as many as we want, using different D1,A0 and A1 pins, charing the same A2 pin
   charger1 = new batteryCharger( 11, 0, 1, VOLTAGE_REFERENCE_PIN );
-  charger1->setup();
+  charger1->serialBegin();
 
   // example of a second charger to charge a second battery with the same arduino. 
   // this second one uses pin 10 as PWM to charge, and analogs 3 and 4 to measure current
   charger2 = new batteryCharger( 10, 3, 4, VOLTAGE_REFERENCE_PIN );
-  charger2->setup();
+  charger2->serialBegin();
 }
 
 void loop(){
