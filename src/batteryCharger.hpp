@@ -328,6 +328,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         float limitCheckIfCharged =  CHECK_CHARGE / ( 1 + charged * 10 ) ;
         int n=0;
         if( checkIfCharged > limitCheckIfCharged ) {
+            Serial.println("Waiting 5 seconds for battery cool down so we can get better voltage reading...");
             analogWrite(outputPin, 0);
             delay(5000);
             Serial.println("================================================================");
