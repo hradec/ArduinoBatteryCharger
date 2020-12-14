@@ -261,7 +261,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         targetCurrent = BATTERY_CAPACITY / 10;
         maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
         _outputValue  = 0;
-        chargeStuckBoost = 0;
+        batteryVoltageAvgOld = chargeStuckBoost = 0;
         print("No Battery connected");     //display the temperature in degrees C
         analogWrite(outputPin, 0);
         // delay(1000);
@@ -364,7 +364,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         int n=0;
         if( checkIfCharged > limitCheckIfCharged ) {
             deferedFullClearScreen();
-            print("Waiting 5 seconds for battery cool down so we can get better voltage reading...");
+            print("Waiting 5 seconds for battery cool down so we can get better \nvoltage reading...");
             analogWrite(outputPin, 0);
             delay(5000);
             print(doubleLine);
@@ -383,8 +383,15 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
                 chargeStuckBoost = 20;
             }else if( abs( CUTOF_VOLTAGE - batteryVoltageAvg ) < 50 ){
                 chargeStuckBoost++;
+                if( chargeStuckBoost > STUCK_BOOST_THRESHOLD ){
+                    chargeStuckBoost = 20;
+                }
             }else{
-                chargeStuckBoost = 0;
+                if( chargeStuckBoost > STUCK_BOOST_THRESHOLD ){
+                    chargeStuckBoost -= 1;
+                }else{
+                    chargeStuckBoost = 0;
+                }
             }
             batteryVoltageAvgOld = batteryVoltageAvg;
 
@@ -407,7 +414,7 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
                 targetCurrent = BATTERY_CAPACITY / 10;
                 maximunAutoAdjustedChargingCurrent = MAXIMUN_CHARGING_CURRENT;
                 _outputValue  = 0;
-                chargeStuckBoost = 0;
+                batteryVoltageAvgOld = chargeStuckBoost = 0;
                 print("Max Voltage Exceeded... stopping charging.");
             }
         }
@@ -416,7 +423,6 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         // if we are in charge stuck boost mode, set output value to max!
         // ====================================================================================
         if( chargeStuckBoost >= STUCK_BOOST_THRESHOLD ){
-            chargeStuckBoost = STUCK_BOOST_THRESHOLD;
             chargingVoltage = CHARGING_VOLTAGE_BOOST;
         }else{
             chargingVoltage = CHARGING_VOLTAGE;
@@ -448,10 +454,11 @@ void batteryCharger::loop(int CLEAR_SCREEN=0){
         print("| Out: "
             + String( _outputValue )
             + " | isChrgd: "
-            + String( (100*(1.0 - (checkIfCharged / limitCheckIfCharged))) )
+            + String( String(100*(1.0 - (checkIfCharged / limitCheckIfCharged)),1) )
             + "% | stuckBoost: "
-            + String( 100*(chargeStuckBoost/STUCK_BOOST_THRESHOLD) )
-            + "%  | Chrgd? "
+            // + String( 100*( chargeStuckBoost>STUCK_BOOST_THRESHOLD ? STUCK_BOOST_THRESHOLD : chargeStuckBoost/STUCK_BOOST_THRESHOLD) )
+            + String( String( chargeStuckBoost-STUCK_BOOST_THRESHOLD < 0 ? 0 : chargeStuckBoost-STUCK_BOOST_THRESHOLD, 0 ) )
+            + " | Chrgd? "
             + (charged > 0 ?
                 "YES |" :
                 "NO  |"
